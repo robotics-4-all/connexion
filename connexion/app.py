@@ -226,7 +226,7 @@ class App(object):
         logger.debug('Adding %s with decorator', rule, extra=options)
         return self.app.route(rule, **options)
 
-    def run(self, port=None, server=None, debug=None, **options):  # pragma: no cover
+    def run(self, port=None, server=None, debug=None, workers=2, **options):  # pragma: no cover
         """
         Runs the application on a local development server.
 
@@ -265,7 +265,8 @@ class App(object):
                 raise Exception('tornado library not installed')
             wsgi_container = tornado.wsgi.WSGIContainer(self.app)
             http_server = tornado.httpserver.HTTPServer(wsgi_container, **options)
-            http_server.listen(self.port)
+            http_server.bind(self.port)
+            http_server.start(workers)  # fork subprocesses
             logger.info('Listening on port %s..', self.port)
             tornado.ioloop.IOLoop.instance().start()
         elif self.server == 'gevent':
