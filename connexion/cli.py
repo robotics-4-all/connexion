@@ -5,6 +5,7 @@ from os import path
 import click
 import connexion
 from clickclick import AliasedGroup, fatal_error
+from connexion.mock import MockResolver
 
 logger = logging.getLogger('connexion.cli')
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -41,6 +42,7 @@ def main():
 @click.argument('spec_file')
 @click.argument('base_module_path', required=False)
 @click.option('--port', '-p', default=5000, type=int, help='Port to listen.')
+@click.option('--host', '-H', type=str, help='Host interface to bind on.')
 @click.option('--wsgi-server', '-w', default='flask',
               type=click.Choice(['flask', 'gevent', 'tornado']),
               callback=validate_wsgi_server_requirements,
@@ -49,6 +51,8 @@ def main():
               help='Returns status code 501, and `Not Implemented Yet` payload, for '
               'the endpoints which handlers are not found.',
               is_flag=True, default=False)
+@click.option('--mock', metavar='MOCKMODE', type=click.Choice(['all', 'notimplemented']),
+              help='Returns example data for all endpoints or for which handlers are not found.')
 @click.option('--hide-spec',
               help='Hides the API spec in JSON format which is by default available at `/swagger.json`.',
               is_flag=True, default=False)
@@ -76,8 +80,10 @@ def main():
 def run(spec_file,
         base_module_path,
         port,
+        host,
         wsgi_server,
         stub,
+        mock,
         hide_spec,
         hide_console_ui,
         console_ui_url,
@@ -116,6 +122,11 @@ def run(spec_file,
     if stub:
         resolver_error = 501
 
+    api_extra_args = {}
+    if mock:
+        resolver = MockResolver(mock_all=mock == 'all')
+        api_extra_args['resolver'] = resolver
+
     app = connexion.App(__name__,
                         swagger_json=not hide_spec,
                         swagger_ui=not hide_console_ui,
@@ -128,9 +139,11 @@ def run(spec_file,
                 base_path=base_path,
                 resolver_error=resolver_error,
                 validate_responses=validate_responses,
-                strict_validation=strict_validation)
+                strict_validation=strict_validation,
+                **api_extra_args)
 
     app.run(port=port,
+            host=host,
             server=wsgi_server,
             debug=debug)
 

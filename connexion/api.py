@@ -46,6 +46,13 @@ def compatibility_layer(spec):
     return spec
 
 
+def canonical_base_url(base_path):
+    """
+    Make given "basePath" a canonical base URL which can be prepended to paths starting with "/".
+    """
+    return base_path.rstrip('/')
+
+
 class Api(object):
     """
     Single API that corresponds to a flask blueprint
@@ -104,14 +111,18 @@ class Api(object):
         # https://github.com/swagger-api/swagger-spec/blob/master/versions/2.0.md#fixed-fields
         # If base_url is not on provided then we try to read it from the swagger.yaml or use / by default
         if base_url is None:
-            self.base_url = self.specification.get('basePath', '')  # type: dict
+            self.base_url = canonical_base_url(self.specification.get('basePath', ''))
         else:
-            self.base_url = base_url
+            self.base_url = canonical_base_url(base_url)
             self.specification['basePath'] = base_url
 
         # A list of MIME types the APIs can produce. This is global to all APIs but can be overridden on specific
         # API calls.
         self.produces = self.specification.get('produces', list())  # type: List[str]
+
+        # A list of MIME types the APIs can consume. This is global to all APIs but can be overridden on specific
+        # API calls.
+        self.consumes = self.specification.get('consumes', ['application/json'])  # type: List[str]
 
         self.security = self.specification.get('security')
         self.security_definitions = self.specification.get('securityDefinitions', dict())
@@ -167,6 +178,7 @@ class Api(object):
                               path_parameters=path_parameters,
                               operation=swagger_operation,
                               app_produces=self.produces,
+                              app_consumes=self.consumes,
                               app_security=self.security,
                               security_definitions=self.security_definitions,
                               definitions=self.definitions,

@@ -1,26 +1,22 @@
 swagger: "2.0"
 
 info:
-  title: "{{title}}"
+  title: "Test basePath == /"
   version: "1.0"
 
-basePath: /v1.0
+basePath: /
 
 paths:
   /greeting/{name}:
     post:
       summary: Generate greeting
       description: Generates a greeting message.
-      operationId: hello.post_greeting
-      produces:
-        - text/plain;
+      operationId: fakeapi.hello.post_greeting
       responses:
-        200:
+        '200':
           description: greeting response
           schema:
-            type: string
-          examples:
-            "text/plain": "Hello John"
+            type: object
       parameters:
         - name: name
           in: path

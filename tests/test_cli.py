@@ -59,6 +59,20 @@ def test_run_simple_spec(mock_app_run, spec_file):
     app_instance = mock_app_run()
     app_instance.run.assert_called_with(
         port=default_port,
+        host=None,
+        server=None,
+        debug=False)
+
+
+def test_run_spec_with_host(mock_app_run, spec_file):
+    default_port = 5000
+    runner = CliRunner()
+    runner.invoke(main, ['run', spec_file, '--host', 'custom.host'], catch_exceptions=False)
+
+    app_instance = mock_app_run()
+    app_instance.run.assert_called_with(
+        port=default_port,
+        host='custom.host',
         server=None,
         debug=False)
 
@@ -194,6 +208,17 @@ def test_run_unimplemented_operations_and_stub(mock_app_run):
         runner.invoke(main, ['run', spec_file], catch_exceptions=False)
     # yet can be run with --stub option
     result = runner.invoke(main, ['run', spec_file, '--stub'], catch_exceptions=False)
+    assert result.exit_code == 0
+
+
+def test_run_unimplemented_operations_and_mock(mock_app_run):
+    runner = CliRunner()
+
+    spec_file = str(FIXTURES_FOLDER / 'missing_implementation/swagger.yaml')
+    with pytest.raises(ResolverError):
+        runner.invoke(main, ['run', spec_file], catch_exceptions=False)
+    # yet can be run with --mock option
+    result = runner.invoke(main, ['run', spec_file, '--mock=all'], catch_exceptions=False)
     assert result.exit_code == 0
 
 
