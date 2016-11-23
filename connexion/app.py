@@ -3,6 +3,7 @@ import pathlib
 
 import flask
 import werkzeug.exceptions
+
 from connexion.decorators.produces import JSONEncoder as ConnexionJSONEncoder
 from connexion.resolver import Resolver
 
@@ -74,6 +75,7 @@ class App(object):
         self.swagger_path = swagger_path
         self.swagger_url = swagger_url
         self.auth_all_paths = auth_all_paths
+        self.resolver_error = None
 
     @staticmethod
     def common_error_handler(exception):
@@ -84,14 +86,14 @@ class App(object):
             exception = werkzeug.exceptions.InternalServerError()
         return problem(title=exception.name, detail=exception.description, status=exception.code)
 
-    def add_api(self, swagger_file, base_path=None, arguments=None, auth_all_paths=None, swagger_json=None,
+    def add_api(self, specification, base_path=None, arguments=None, auth_all_paths=None, swagger_json=None,
                 swagger_ui=None, swagger_path=None, swagger_url=None, validate_responses=False,
                 strict_validation=False, resolver=Resolver(), resolver_error=None):
         """
-        Adds an API to the application based on a swagger file
+        Adds an API to the application based on a swagger file or API dict
 
-        :param swagger_file: swagger file with the specification
-        :type swagger_file: pathlib.Path
+        :param specification: swagger file with the specification | specification dict
+        :type specification: pathlib.Path or dict
         :param base_path: base path where to add this api
         :type base_path: str | None
         :param arguments: api version specific arguments to replace on the specification
@@ -120,7 +122,7 @@ class App(object):
         # Turn the resolver_error code into a handler object
         self.resolver_error = resolver_error
         resolver_error_handler = None
-        if resolver_error is not None:
+        if self.resolver_error is not None:
             resolver_error_handler = self._resolver_error_handler
 
         resolver = Resolver(resolver) if hasattr(resolver, '__call__') else resolver
@@ -130,12 +132,16 @@ class App(object):
         swagger_path = swagger_path if swagger_path is not None else self.swagger_path
         swagger_url = swagger_url if swagger_url is not None else self.swagger_url
         auth_all_paths = auth_all_paths if auth_all_paths is not None else self.auth_all_paths
-        logger.debug('Adding API: %s', swagger_file)
         # TODO test if base_url starts with an / (if not none)
         arguments = arguments or dict()
         arguments = dict(self.arguments, **arguments)  # copy global arguments and update with api specfic
-        yaml_path = self.specification_dir / swagger_file
-        api = Api(swagger_yaml_path=yaml_path,
+
+        if isinstance(specification, dict):
+            specification = specification
+        else:
+            specification = self.specification_dir / specification
+
+        api = Api(specification=specification,
                   base_url=base_path, arguments=arguments,
                   swagger_json=swagger_json,
                   swagger_ui=swagger_ui,
@@ -263,7 +269,7 @@ class App(object):
 
         logger.debug('Starting %s HTTP server..', self.server, extra=vars(self))
         if self.server == 'flask':
-            self.app.run(host, port=self.port, debug=self.debug, **options)
+            self.app.run(self.host, port=self.port, debug=self.debug, **options)
         elif self.server == 'tornado':
             try:
                 import tornado.wsgi
@@ -273,9 +279,10 @@ class App(object):
                 raise Exception('tornado library not installed')
             wsgi_container = tornado.wsgi.WSGIContainer(self.app)
             http_server = tornado.httpserver.HTTPServer(wsgi_container, **options)
-            http_server.bind(self.port, address=host)
+            http_server.bind(self.port, address=self.host)
             http_server.start(workers)  # fork subprocesses
-            logger.info('Listening on port %s..', self.port)
+            http_server.listen(self.port, address=self.host)
+            logger.info('Listening on %s:%s..', self.host, self.port)
             tornado.ioloop.IOLoop.instance().start()
         elif self.server == 'gevent':
             try:
@@ -283,7 +290,7 @@ class App(object):
             except:
                 raise Exception('gevent library not installed')
             http_server = gevent.wsgi.WSGIServer((self.host, self.port), self.app, **options)
-            logger.info('Listening on %s:%s..', host, self.port)
+            logger.info('Listening on %s:%s..', self.host, self.port)
             http_server.serve_forever()
         else:
             raise Exception('Server %s not recognized', self.server)
