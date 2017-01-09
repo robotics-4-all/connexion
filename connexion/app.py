@@ -281,7 +281,6 @@ class App(object):
             http_server = tornado.httpserver.HTTPServer(wsgi_container, **options)
             http_server.bind(self.port, address=self.host)
             http_server.start(workers)  # fork subprocesses
-            http_server.listen(self.port, address=self.host)
             logger.info('Listening on %s:%s..', self.host, self.port)
             tornado.ioloop.IOLoop.instance().start()
         elif self.server == 'gevent':
